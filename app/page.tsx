@@ -1,23 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState, useRef } from "react";
-import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
-import { Copy, Mail, Code, ExternalLink, Download, Layers, ShieldCheck, ArrowRight, User, Globe, Database, Network, Cloud, Server, Cpu, Github, Linkedin, X, Send, Terminal, Briefcase } from "lucide-react";
-import emailjs from '@emailjs/browser';
+import { motion, useScroll, useTransform, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Mail, Code, Download, ShieldCheck, ArrowRight, User, Cpu, Github, Linkedin, X, Send, Terminal, Briefcase, FileText } from "lucide-react";
 
 export default function Home() {
    const RETURN_ANCHOR_KEY = "portfolio:return-anchor";
-  const [mounted, setMounted] = useState(false);
   const [mousePos, setMousePosition] = useState({ x: -1000, y: -1000 });
+   const [hasFinePointer, setHasFinePointer] = useState(false);
+   const [isDockVisible, setIsDockVisible] = useState(true);
+   const [activeSection, setActiveSection] = useState("home");
+   const [isMobilePhotoTouched, setIsMobilePhotoTouched] = useState(false);
+   const [isPageVisible, setIsPageVisible] = useState(true);
   const [scrambledText, setScrambledText] = useState("Full-Stack Developer");
-  const [showPreloader, setShowPreloader] = useState(true);
-  const [loadingText, setLoadingText] = useState("[SYSTEM_INIT] ...");
-  const [activeCVTab, setActiveCVTab] = useState("experience");
+   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactStep, setContactStep] = useState(0); // 0: form, 1: sending, 2: success, 3: error
   const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
   const formRef = useRef<HTMLFormElement>(null);
+   const prefersReducedMotion = useReducedMotion();
   
   const { scrollYProgress } = useScroll();
   const heroImageY = useTransform(scrollYProgress, [0, 1], [0, 400]);
@@ -34,13 +37,18 @@ export default function Home() {
    };
 
   useEffect(() => {
-    setMounted(true);
-    
-    // Mouse tracking for interactive background
-    const updateMousePosition = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener("mousemove", updateMousePosition);
+      const pointerQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+      const syncPointerMode = () => setHasFinePointer(pointerQuery.matches);
+      syncPointerMode();
+
+      // Mouse tracking is desktop-only; touch devices use static lighting.
+      const updateMousePosition = (e: MouseEvent) => {
+         setMousePosition({ x: e.clientX, y: e.clientY });
+      };
+      if (pointerQuery.matches) {
+         window.addEventListener("mousemove", updateMousePosition);
+      }
+      pointerQuery.addEventListener("change", syncPointerMode);
 
     // Hacker text scramble effect
    const originalText = "Software Engineer";
@@ -56,26 +64,37 @@ export default function Home() {
       iteration += 1 / 3;
     }, 50);
 
-      // Preloader sequence
-    const t1 = setTimeout(() => {
-         setLoadingText("ESTABLISHING CONNECTION...");
-      }, 500);
-    const t2 = setTimeout(() => {
-         setLoadingText("DECRYPTING PORTFOLIO ASSETS...");
-      }, 1000);
-    const t3 = setTimeout(() => {
-      setShowPreloader(false);
-    }, 1600);
-
     return () => {
-      window.removeEventListener("mousemove", updateMousePosition);
+         window.removeEventListener("mousemove", updateMousePosition);
+         pointerQuery.removeEventListener("change", syncPointerMode);
       clearInterval(interval);
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
     };
   }, []);
 
    useEffect(() => {
-      if (!mounted || showPreloader || typeof window === "undefined") return;
+      let lastY = window.scrollY;
+
+      const handleScroll = () => {
+         const currentY = window.scrollY;
+         const delta = currentY - lastY;
+
+         if (currentY < 80) {
+            setIsDockVisible(true);
+         } else if (delta > 8) {
+            setIsDockVisible(false);
+         } else if (delta < -8) {
+            setIsDockVisible(true);
+         }
+
+         lastY = currentY;
+      };
+
+      window.addEventListener("scroll", handleScroll, { passive: true });
+      return () => window.removeEventListener("scroll", handleScroll);
+   }, []);
+
+   useEffect(() => {
+      if (typeof window === "undefined") return;
 
       const savedAnchor = window.sessionStorage.getItem(RETURN_ANCHOR_KEY);
       if (savedAnchor !== "portfolio") return;
@@ -89,59 +108,135 @@ export default function Home() {
       }
 
       window.sessionStorage.removeItem(RETURN_ANCHOR_KEY);
-   }, [mounted, showPreloader]);
+   }, []);
 
-  if (!mounted) return <div className="min-h-screen bg-[#111315]"></div>;
+   useEffect(() => {
+      const sections = ["home", "resume", "portfolio", "contact"]
+         .map((id) => document.getElementById(id))
+         .filter(Boolean) as HTMLElement[];
+
+      if (!sections.length) return;
+
+      const observer = new IntersectionObserver(
+         (entries) => {
+            const visible = entries
+               .filter((entry) => entry.isIntersecting)
+               .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+            if (visible?.target?.id) {
+               setActiveSection(visible.target.id);
+            }
+         },
+         {
+            root: null,
+            threshold: [0.25, 0.5, 0.75],
+            rootMargin: "-20% 0px -45% 0px",
+         }
+      );
+
+      sections.forEach((section) => observer.observe(section));
+      return () => observer.disconnect();
+   }, []);
+
+   useEffect(() => {
+      const handleVisibility = () => {
+         setIsPageVisible(document.visibilityState === "visible");
+      };
+
+      handleVisibility();
+      document.addEventListener("visibilitychange", handleVisibility);
+      return () => document.removeEventListener("visibilitychange", handleVisibility);
+   }, []);
+
+   const shouldRunPreviewAmbient = hasFinePointer && !prefersReducedMotion;
 
    const stack = ["Symfony (PHP)", "Node.js REST APIs", "React Native", "FlutterFlow", "MongoDB", "Docker", "GNS3 OSPF & GRE/IPsec"];
    const directMailTo = "mailto:ayafdhila@gmail.com?subject=Project%20Collaboration%20with%20Aya%20Fdhila&body=Hi%20Aya%2C%0A%0AI%20saw%20your%20portfolio%20and%20I%20would%20like%20to%20discuss%20a%20project.%0A";
 
-  return (
-    <div className="min-h-screen bg-[#111315] text-[#b0b3b8] font-sans selection:bg-[#00f0ff] selection:text-black pb-40 overflow-x-hidden relative">
-      
-      {/* 0. SYSTEM BOOT PRELOADER */}
-      <AnimatePresence>
-        {showPreloader && (
-          <motion.div 
-            key="preloader"
-            initial={{ y: 0 }}
-            exit={{ y: "-100%", transition: { duration: 0.8, ease: [0.76, 0, 0.24, 1] } }}
-            className="fixed inset-0 z-[200] bg-[#0f1011] flex flex-col items-center justify-center pointer-events-none"
-          >
-             <motion.div 
-               animate={{ opacity: [0.4, 1, 0.4] }} 
-               transition={{ repeat: Infinity, duration: 1.5 }}
-               className="text-[#00f0ff] font-mono text-xs md:text-sm tracking-[0.2em] uppercase flex flex-col items-center gap-6"
-             >
-                <div className="w-12 h-12 border border-[#00f0ff]/20 border-t-[#00f0ff] rounded-full animate-spin mb-2"></div>
-                {loadingText}
-             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+   const ProjectPreviewMedia = ({
+      projectId,
+      videoSrc,
+   }: {
+      projectId: string;
+      videoSrc: string;
+   }) => {
+      const mediaRef = useRef<HTMLDivElement>(null);
+      const [isInView, setIsInView] = useState(false);
 
+      useEffect(() => {
+         const node = mediaRef.current;
+         if (!node) return;
+
+         const observer = new IntersectionObserver(
+            ([entry]) => {
+               setIsInView(entry.isIntersecting);
+            },
+            {
+               root: null,
+               threshold: 0.55,
+               rootMargin: "80px 0px 80px 0px",
+            }
+         );
+
+         observer.observe(node);
+         return () => observer.disconnect();
+      }, []);
+
+      const shouldPreview = isPageVisible && isInView;
+
+      return (
+         <div ref={mediaRef} className="absolute inset-0 z-0 h-full w-full overflow-hidden opacity-80 md:opacity-50 md:group-hover:opacity-100 transition-opacity duration-700">
+            <video
+               autoPlay={shouldPreview}
+               loop
+               muted
+               playsInline
+               preload="none"
+               className={`absolute top-0 left-0 w-full h-[70%] object-cover transition-all duration-500 ${
+                  shouldPreview ? "opacity-85 md:group-hover:scale-105" : "opacity-0"
+               }`}
+            >
+               {shouldPreview && <source src={videoSrc} type="video/mp4" />}
+            </video>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d10] via-[#0c0d10]/80 to-transparent"></div>
+         </div>
+      );
+   };
+
+  return (
+   <div className="min-h-screen bg-[#111315] text-[#b0b3b8] font-sans selection:bg-[#00f0ff] selection:text-black pb-24 md:pb-28 overflow-x-hidden relative">
+      <motion.div
+         className="fixed top-0 left-0 right-0 h-[3px] z-[60] origin-left bg-gradient-to-r from-[#00f0ff] via-[#72f6ff] to-[#b9fcff] shadow-[0_0_14px_rgba(0,240,255,0.55)]"
+         style={{ scaleX: scrollYProgress }}
+      />
+      
       {/* 1. INTERACTIVE MOUSE FLASHLIGHT AND GRID */}
       <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-30"></div>
-      <div 
-        className="fixed inset-0 z-0 pointer-events-none transition-opacity duration-300"
-        style={{
-          background: `radial-gradient(800px circle at ${mousePos.x}px ${mousePos.y}px, rgba(0,240,255,0.06), transparent 40%)`
-        }}
-      />
+         {hasFinePointer ? (
+            <div 
+               className="fixed inset-0 z-0 pointer-events-none transition-opacity duration-300"
+               style={{
+                  background: `radial-gradient(800px circle at ${mousePos.x}px ${mousePos.y}px, rgba(0,240,255,0.06), transparent 40%)`
+               }}
+            />
+         ) : (
+            <div className="fixed inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_50%_18%,rgba(0,240,255,0.08),transparent_45%)]" />
+         )}
 
       {/* 2. FLOATING APPLE-STYLE DOCK NAV (Instead of standard top-nav) */}
       <motion.nav 
         initial={{ y: 100, opacity: 0, x: "-50%" }}
         animate={{ y: 0, opacity: 1, x: "-50%" }}
         transition={{ duration: 1, delay: 0.5, type: "spring" }}
-        className="fixed bottom-6 lg:bottom-8 left-1/2 z-50 bg-[#151719]/80 backdrop-blur-xl border border-white/10 rounded-full px-4 md:px-6 py-3 md:py-4 flex items-center gap-4 md:gap-8 shadow-2xl shadow-black/50"
+         className={`fixed bottom-3 md:bottom-6 lg:bottom-8 left-1/2 z-50 w-[calc(100vw-1rem)] sm:w-auto max-w-[calc(100vw-1rem)] bg-[#151719]/80 backdrop-blur-xl border border-white/10 rounded-full px-2.5 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 flex items-center justify-center gap-1.5 sm:gap-4 md:gap-8 shadow-2xl shadow-black/50 transition-transform duration-300 ${isDockVisible ? "translate-y-0" : "translate-y-[140%]"} md:translate-y-0`}
+            style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
       >
-        <Link href="#home" className="text-white hover:text-[#00f0ff] transition-all hover:scale-110 flex items-center justify-center p-2"><User size={20} /></Link>
+        <Link href="#home" className={`transition-all hover:scale-110 flex items-center justify-center p-2 rounded-full border ${activeSection === "home" ? "text-[#00f0ff] border-[#00f0ff]/40 bg-[#00f0ff]/10" : "text-white border-transparent hover:text-[#00f0ff]"}`}><User size={20} /></Link>
             <Link
                href="#resume"
                aria-label="Jump to experience section"
                title="Experience"
-               className="text-white hover:text-[#00f0ff] transition-all hover:scale-110 flex items-center justify-center p-2"
+               className={`transition-all hover:scale-110 flex items-center justify-center p-2 rounded-full border ${activeSection === "resume" ? "text-[#00f0ff] border-[#00f0ff]/40 bg-[#00f0ff]/10" : "text-white border-transparent hover:text-[#00f0ff]"}`}
             >
                <Briefcase size={20} />
             </Link>
@@ -149,7 +244,7 @@ export default function Home() {
                href="#portfolio"
                aria-label="Jump to portfolio section"
                title="Projects"
-               className="text-white hover:text-[#00f0ff] transition-all hover:scale-110 flex items-center justify-center p-2"
+               className={`transition-all hover:scale-110 flex items-center justify-center p-2 rounded-full border ${activeSection === "portfolio" ? "text-[#00f0ff] border-[#00f0ff]/40 bg-[#00f0ff]/10" : "text-white border-transparent hover:text-[#00f0ff]"}`}
             >
                <Code size={20} />
             </Link>
@@ -183,39 +278,123 @@ export default function Home() {
                <Linkedin size={18} className="relative z-10" />
             </a>
         <div className="w-px h-6 bg-white/20"></div>
-      <a href="/aya-fdhila-cv.pdf" download className="text-[#00f0ff] hover:text-white transition-all hover:scale-110 flex items-center justify-center p-2"><Download size={20} /></a>
+      <button
+         type="button"
+         aria-label="Open resume preview"
+         title="View Resume"
+         onClick={() => setIsResumeModalOpen(true)}
+         className="text-[#00f0ff] hover:text-white transition-all hover:scale-110 flex items-center justify-center p-2"
+      >
+         <Download size={20} />
+      </button>
       </motion.nav>
 
       {/* 3. HERO SECTION - EDITORIAL LAYOUT */}
-      <section id="home" className="relative max-w-7xl mx-auto px-8 md:px-16 pt-32 min-h-[90vh] flex items-center border-b border-white/5">
+      <motion.section
+         id="home"
+         initial={prefersReducedMotion ? false : { opacity: 0, y: 22 }}
+         whileInView={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+         transition={{ duration: prefersReducedMotion ? 0 : 0.45, ease: "easeOut" }}
+         viewport={{ once: true, amount: 0.15 }}
+         className="relative max-w-7xl mx-auto px-4 sm:px-6 md:px-16 pt-16 sm:pt-20 md:pt-28 pb-10 sm:pb-12 md:pb-0 min-h-[68vh] sm:min-h-[74vh] md:min-h-[90vh] flex items-center border-b border-white/5"
+      >
         
-        <div className="grid lg:grid-cols-12 gap-12 items-center w-full z-10 pointer-events-none">
+      <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-center w-full z-10 pointer-events-none">
            
            <div className="lg:col-span-7 relative z-20 pointer-events-auto">
              <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                        <p className="text-[#00f0ff] font-mono text-sm tracking-[0.3em] uppercase mb-6 flex items-center gap-4 w-max">
-                           <span className="w-8 h-px bg-[#00f0ff]"></span> Software Engineering Student | Junior Full-Stack / Mobile Developer
+                        <p className="text-[#00f0ff] font-mono text-[10px] sm:text-sm tracking-[0.14em] sm:tracking-[0.3em] uppercase mb-5 sm:mb-6 flex flex-wrap items-center gap-2 sm:gap-4 max-w-full leading-relaxed">
+                           <span className="hidden sm:block w-8 h-px bg-[#00f0ff]"></span> Software Engineering Student | Junior Full-Stack / Mobile Developer
                 </p>
-                <h1 className="text-white text-6xl sm:text-8xl md:text-[8rem] font-black uppercase tracking-tighter leading-[0.85] mb-6">
-                    AYA <br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#00f0ff]/50">FDHILA</span>
-                  </h1>
+                <div className="mb-7 flex items-center justify-between gap-4 sm:gap-6 lg:block">
+                   <h1 className="flex-1 text-white text-4xl sm:text-6xl md:text-[8rem] font-black uppercase tracking-tighter leading-[0.88] mb-0 lg:mb-6">
+                      AYA <br/>
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#00f0ff]/50">FDHILA</span>
+                   </h1>
+
+                   {/* Mobile Hero Image with animated rings */}
+                   <div className="lg:hidden mb-0 pointer-events-auto shrink-0">
+                      <motion.div
+                         animate={prefersReducedMotion ? undefined : { scale: [1, 1.028, 1] }}
+                         transition={{ repeat: Infinity, duration: 5.2, ease: "easeInOut" }}
+                         className="relative w-[124px] h-[124px] sm:w-[152px] sm:h-[152px]"
+                      >
+                         <div className="absolute inset-0 bg-[#00f0ff]/18 blur-[44px] rounded-full scale-125 transform-gpu" />
+                         <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 26, ease: "linear" }}
+                            className="absolute -inset-2 border border-white/10 rounded-full border-t-[#00f0ff]/60"
+                         />
+                         <motion.div
+                            animate={{ rotate: -360 }}
+                            transition={{ repeat: Infinity, duration: 18, ease: "linear" }}
+                            className="absolute -inset-4 border border-white/5 rounded-full border-b-[#b829ff]/35"
+                         />
+                         <div
+                            className="w-full h-full rounded-full overflow-hidden border-2 border-white/10 relative bg-[#0a0a0a] shadow-[0_0_28px_rgba(0,0,0,0.55)] z-10"
+                            onTouchStart={() => setIsMobilePhotoTouched(true)}
+                            onTouchEnd={() => setIsMobilePhotoTouched(false)}
+                            onTouchCancel={() => setIsMobilePhotoTouched(false)}
+                         >
+                            <motion.div
+                               animate={{ y: [-1.5, 1.5, -1.5] }}
+                               transition={{ repeat: Infinity, duration: 5.5, ease: "easeInOut" }}
+                               className="w-full h-full relative"
+                            >
+                               <Image
+                                  src="/profile.png"
+                                  alt="Aya Fdhila"
+                                  fill
+                                  sizes="(max-width: 640px) 124px, 152px"
+                                  priority
+                                  className={`object-cover filter contrast-125 brightness-90 transition-all duration-300 ${
+                                     isMobilePhotoTouched ? "grayscale-0 contrast-100 brightness-100" : "grayscale"
+                                  }`}
+                               />
+                               <div className="absolute inset-0 rounded-full shadow-[inset_0_0_48px_rgba(0,0,0,0.7)] pointer-events-none"></div>
+                            </motion.div>
+                         </div>
+                      </motion.div>
+                   </div>
+                </div>
                 
                 {/* Hacker Scramble Text */}
-                <div className="bg-white/5 border border-white/10 px-6 py-3 rounded-lg inline-block backdrop-blur-sm mb-10">
+                <div className="bg-white/5 border border-white/10 px-5 md:px-6 py-3 rounded-lg inline-block backdrop-blur-sm mb-8 md:mb-10">
                    <p className="text-[#00f0ff] font-mono text-md md:text-lg tracking-widest">{scrambledText}</p>
                 </div>
 
-                <div className="flex gap-6 max-w-xl text-sm text-white/60 leading-relaxed font-light">
-                   <p>Software Engineering student at ESPRIT and Computer Engineering graduate (ISIMA'25), delivering end-to-end solutions across Symfony (PHP) web platforms, Node.js REST APIs, and mobile apps with React Native and FlutterFlow. PFE intern at ARSII on BiteWise (digital nutrition coach platform), with a strong focus on clean architecture, validation/testing mindset, and Agile execution.</p>
+                <div className="flex gap-6 max-w-xl text-sm text-white/70 leading-7 font-light">
+                   <p>Software Engineering student at ESPRIT and Computer Engineering graduate (ISIMA&apos;25). I build full-stack web and mobile products across Symfony, Node.js, React Native, and FlutterFlow with a clean architecture mindset.</p>
                 </div>
 
-                <div className="mt-12 flex items-center gap-6">
-                   <span className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full backdrop-blur-md">
+                <div className="mt-7 flex flex-wrap items-center gap-3">
+                   <Link
+                      href="#portfolio"
+                      className="inline-flex items-center gap-2 rounded-full border border-[#00f0ff]/40 bg-[#00f0ff]/10 px-5 py-2.5 text-xs font-bold tracking-[0.14em] uppercase text-[#00f0ff] hover:bg-[#00f0ff] hover:text-black transition-colors"
+                   >
+                      View Projects <ArrowRight size={14} />
+                   </Link>
+                   <Link
+                      href="#contact"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-2.5 text-xs font-bold tracking-[0.14em] uppercase text-white hover:border-white/35 hover:bg-white/[0.08] transition-colors"
+                   >
+                      Contact Me
+                   </Link>
+                   <button
+                      type="button"
+                      onClick={() => setIsResumeModalOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-5 py-2.5 text-xs font-bold tracking-[0.14em] uppercase text-white hover:border-[#00f0ff]/50 hover:text-[#00f0ff] transition-colors"
+                   >
+                      View Resume <FileText size={14} />
+                   </button>
+                </div>
+
+                <div className="mt-10 md:mt-12 flex flex-wrap items-center gap-4 md:gap-6">
+                   <span className="flex items-center gap-2 text-[11px] md:text-xs font-bold text-white uppercase tracking-[0.12em] md:tracking-widest bg-white/10 px-4 py-2 rounded-full backdrop-blur-md">
                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div> Available for work
                    </span>
                    {/* Direct Social Links */}
-                   <div className="flex gap-4">
+                   <div className="flex gap-3 md:gap-4">
                      <a href="https://github.com/aya284" target="_blank" rel="noopener noreferrer" className="p-2.5 border border-white/10 rounded-full hover:border-[#00f0ff] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10 transition-all duration-300">
                         <Github size={18} />
                      </a>
@@ -252,10 +431,13 @@ export default function Home() {
                         transition={{ duration: 0.8, ease: "easeOut" }}
                         className="w-full h-full relative"
                       >
-                         <img 
-                            src="/profile.png" 
-                            alt="Aya Fdhila" 
-                            className="w-full h-full object-cover filter grayscale contrast-125 brightness-90 group-hover:grayscale-0 group-hover:contrast-100 group-hover:brightness-100 transition-all duration-700 ease-out"
+                         <Image
+                            src="/profile.png"
+                            alt="Aya Fdhila"
+                            fill
+                            sizes="(min-width: 1024px) 380px, 0px"
+                            priority
+                            className="object-cover filter grayscale contrast-125 brightness-90 group-hover:grayscale-0 group-hover:contrast-100 group-hover:brightness-100 transition-all duration-700 ease-out"
                          />
                          
                          {/* Vignette Overlay inner shadow */}
@@ -279,10 +461,10 @@ export default function Home() {
               </div>
            </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* 4. VIBRANT CYAN DATA STREAM */}
-      <div className="relative w-full my-32 py-5 bg-[#00f0ff] border-y border-[#00f0ff]/50 overflow-hidden flex items-center z-20 shadow-[0_0_50px_rgba(0,240,255,0.4)]">
+      <div className="relative w-full my-14 md:my-20 py-4 md:py-5 bg-[#00f0ff] border-y border-[#00f0ff]/50 overflow-hidden flex items-center z-20 shadow-[0_0_50px_rgba(0,240,255,0.4)]">
          {/* Fade Edges for smooth entry/exit */}
          <div className="absolute left-0 top-0 bottom-0 w-24 md:w-64 bg-gradient-to-r from-[#111315] to-transparent z-10 pointer-events-none"></div>
          <div className="absolute right-0 top-0 bottom-0 w-24 md:w-64 bg-gradient-to-l from-[#111315] to-transparent z-10 pointer-events-none"></div>
@@ -304,21 +486,32 @@ export default function Home() {
           </motion.div>
       </div>
 
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-16 py-3 md:py-6">
+         <div className="section-divider" />
+      </div>
+
       {/* 5. CYBERNETIC SKILL TREE (INNOVATIVE CV) */}
-      <section id="resume" className="max-w-7xl mx-auto px-8 md:px-16 py-32 relative z-20">
-         <div className="text-center mb-20">
+      <motion.section
+         id="resume"
+         initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
+         whileInView={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+         transition={{ duration: prefersReducedMotion ? 0 : 0.45, ease: "easeOut" }}
+         viewport={{ once: true, amount: 0.12 }}
+         className="max-w-7xl mx-auto px-4 sm:px-6 md:px-16 py-14 md:py-28 relative z-20"
+      >
+         <div className="text-center mb-10 md:mb-16">
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
                <h2 className="text-[#00f0ff] font-mono text-sm tracking-[0.3em] uppercase mb-4 flex items-center justify-center gap-3">
                  <Cpu size={16} /> 01 // Neural Databanks
                </h2>
-               <h3 className="text-white text-4xl md:text-6xl font-black uppercase tracking-tighter mb-6">Experience Core</h3>
+               <h3 className="text-white text-3xl md:text-6xl font-black uppercase tracking-tighter mb-4 md:mb-6">Experience Core</h3>
                <p className="text-white/50 text-sm max-w-xl mx-auto">Neural timeline established. Scrolling initializes memory banks.</p>
             </motion.div>
          </div>
 
          <div className="relative w-full max-w-4xl mx-auto">
             {/* Glowing Central Backbone */}
-            <div className="absolute left-[30px] md:left-1/2 top-0 bottom-0 w-px bg-white/10 md:-translate-x-1/2 rounded-full overflow-hidden">
+            <div className="hidden md:block absolute left-[30px] md:left-1/2 top-0 bottom-0 w-px bg-white/10 md:-translate-x-1/2 rounded-full overflow-hidden">
                 <motion.div 
                    className="absolute top-0 w-full bg-gradient-to-b from-[#00f0ff] via-[#b829ff] to-transparent origin-top"
                    style={{ height: '100%' }}
@@ -330,19 +523,19 @@ export default function Home() {
             </div>
 
             {/* Timeline Nodes */}
-            <div className="space-y-24">
+            <div className="space-y-8 md:space-y-16">
                {/* Node 1: ARSII */}
-               <div className="relative flex flex-col md:flex-row items-center justify-between w-full group">
+               <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between w-full group">
                   <div className="hidden md:block w-5/12"></div>
-                  <div className="absolute left-[30px] md:left-1/2 w-5 h-5 bg-[#0d0e10] border-[3px] border-[#00f0ff] rounded-full -translate-x-1/2 z-10 shadow-[0_0_20px_rgba(0,240,255,0.8)] group-hover:scale-150 group-hover:bg-[#00f0ff] transition-all duration-500"></div>
+                  <div className="hidden md:block absolute left-[30px] md:left-1/2 w-5 h-5 bg-[#0d0e10] border-[3px] border-[#00f0ff] rounded-full -translate-x-1/2 z-10 shadow-[0_0_20px_rgba(0,240,255,0.8)] group-hover:scale-150 group-hover:bg-[#00f0ff] transition-all duration-500"></div>
                   <motion.div 
                      initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.6 }}
-                     className="w-full md:w-5/12 pl-16 md:pl-0"
+                     className="w-full md:w-5/12"
                   >
-                     <div className="bg-[#111214]/80 backdrop-blur-xl border border-[#00f0ff]/20 p-8 rounded-3xl relative overflow-hidden group-hover:border-[#00f0ff]/80 transition-colors shadow-2xl">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#00f0ff]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                     <div className="glass-card glass-card--interactive border-[#00f0ff]/20 p-5 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl relative overflow-hidden group-hover:border-[#00f0ff]/80">
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#00f0ff]/10 to-transparent opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500"></div>
                         <span className="text-[#00f0ff] font-mono text-[10px] tracking-widest uppercase block mb-3 z-10 relative">2025 // ARSII (PFE) - BiteWise</span>
-                        <h4 className="text-white text-2xl font-bold mb-2 z-10 relative">React Native Mobile App Intern</h4>
+                        <h4 className="text-white text-xl md:text-2xl font-bold mb-2 z-10 relative">React Native Mobile App Intern</h4>
                         <p className="text-white/60 text-sm leading-relaxed mb-6 z-10 relative">
                            Delivered a React Native mobile app for clients and nutrition coaches, including tracking dashboards, coach discovery, connection requests, and messaging. Integrated backend/API features for authentication, profiles, meal logs, requests, and messaging endpoints, and implemented barcode, manual, and recipe meal logging with structured validation. Collaborated in Scrum/Kanban planning with a Git-based workflow.
                         </p>
@@ -358,17 +551,17 @@ export default function Home() {
                </div>
 
                {/* Node 2: Dundill */}
-               <div className="relative flex flex-col md:flex-row-reverse items-center justify-between w-full group">
+               <div className="relative flex flex-col md:flex-row-reverse items-start md:items-center justify-between w-full group">
                   <div className="hidden md:block w-5/12"></div>
-                  <div className="absolute left-[30px] md:left-1/2 w-5 h-5 bg-[#0d0e10] border-[3px] border-[#b829ff] rounded-full -translate-x-1/2 z-10 shadow-[0_0_20px_rgba(184,41,255,0.8)] group-hover:scale-150 group-hover:bg-[#b829ff] transition-all duration-500"></div>
+                  <div className="hidden md:block absolute left-[30px] md:left-1/2 w-5 h-5 bg-[#0d0e10] border-[3px] border-[#b829ff] rounded-full -translate-x-1/2 z-10 shadow-[0_0_20px_rgba(184,41,255,0.8)] group-hover:scale-150 group-hover:bg-[#b829ff] transition-all duration-500"></div>
                   <motion.div 
                      initial={{ opacity: 0, x: -50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.6 }}
-                     className="w-full md:w-5/12 pl-16 md:pl-0 md:text-right"
+                     className="w-full md:w-5/12 md:text-right"
                   >
-                     <div className="bg-[#111214]/80 backdrop-blur-xl border border-[#b829ff]/20 p-8 rounded-3xl relative overflow-hidden group-hover:border-[#b829ff]/80 transition-colors shadow-2xl">
-                        <div className="absolute inset-0 bg-gradient-to-bl from-[#b829ff]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                     <div className="glass-card glass-card--interactive border-[#b829ff]/20 p-5 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl relative overflow-hidden group-hover:border-[#b829ff]/80">
+                        <div className="absolute inset-0 bg-gradient-to-bl from-[#b829ff]/10 to-transparent opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500"></div>
                         <span className="text-[#b829ff] font-mono text-[10px] tracking-widest uppercase block mb-3 z-10 relative">Jun 2024 - Aug 2024 // Dundill</span>
-                        <h4 className="text-white text-2xl font-bold mb-2 z-10 relative">Intern Developer</h4>
+                        <h4 className="text-white text-xl md:text-2xl font-bold mb-2 z-10 relative">Intern Developer</h4>
                         <p className="text-white/60 text-sm leading-relaxed mb-6 z-10 relative">
                            Contributed to a web application using HTML, CSS, JavaScript, Bootstrap, and React, improving layout consistency and responsiveness. Supported debugging and feature implementation in close collaboration with the development team.
                         </p>
@@ -382,34 +575,45 @@ export default function Home() {
                </div>
 
                {/* Node 3: Education */}
-               <div className="relative flex flex-col md:flex-row items-center justify-between w-full group">
+               <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between w-full group">
                   <div className="hidden md:block w-5/12"></div>
-                  <div className="absolute left-[30px] md:left-1/2 w-5 h-5 bg-[#0d0e10] border-[3px] border-green-400 rounded-full -translate-x-1/2 z-10 shadow-[0_0_20px_rgba(74,222,128,0.8)] group-hover:scale-150 group-hover:bg-green-400 transition-all duration-500"></div>
+                  <div className="hidden md:block absolute left-[30px] md:left-1/2 w-5 h-5 bg-[#0d0e10] border-[3px] border-green-400 rounded-full -translate-x-1/2 z-10 shadow-[0_0_20px_rgba(74,222,128,0.8)] group-hover:scale-150 group-hover:bg-green-400 transition-all duration-500"></div>
                   <motion.div 
                      initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.6 }}
-                     className="w-full md:w-5/12 pl-16 md:pl-0"
+                     className="w-full md:w-5/12"
                   >
-                     <div className="bg-[#111214]/80 backdrop-blur-xl border border-green-400/20 p-8 rounded-3xl relative overflow-hidden group-hover:border-green-400/80 transition-colors shadow-2xl">
-                        <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                     <div className="glass-card glass-card--interactive border-green-400/20 p-5 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl relative overflow-hidden group-hover:border-green-400/80">
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-transparent opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500"></div>
                         <span className="text-green-400 font-mono text-[10px] tracking-widest uppercase block mb-3 z-10 relative">2025 - Present // ESPRIT</span>
-                        <h4 className="text-white text-2xl font-bold mb-2 z-10 relative">Software Engineering Degree</h4>
+                        <h4 className="text-white text-xl md:text-2xl font-bold mb-2 z-10 relative">Software Engineering Degree</h4>
                         <p className="text-white/50 text-xs italic mb-6 z-10 relative">Currently pursuing advanced software engineering, architecture, and product development modules.</p>
                         
                         <div className="w-full h-px bg-white/5 my-6"></div>
 
                         <span className="text-green-400 font-mono text-[10px] tracking-widest uppercase block mb-3 z-10 relative">Graduated 2025 // ISIMA</span>
-                        <h4 className="text-white text-xl font-bold mb-2 z-10 relative">Bachelor's in Computer Engineering</h4>
+                        <h4 className="text-white text-xl font-bold mb-2 z-10 relative">Bachelor&apos;s in Computer Engineering</h4>
                      </div>
                   </motion.div>
                </div>
             </div>
          </div>
-      </section>
+      </motion.section>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-16 py-2 md:py-6">
+         <div className="section-divider" />
+      </div>
 
       {/* 6. CINEMATIC INTERACTIVE PROJECTS SECTION */}
-      <section id="portfolio" className="max-w-7xl mx-auto px-8 md:px-16 py-32 relative z-20">
+      <motion.section
+         id="portfolio"
+         initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
+         whileInView={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+         transition={{ duration: prefersReducedMotion ? 0 : 0.45, ease: "easeOut" }}
+         viewport={{ once: true, amount: 0.12 }}
+         className="max-w-7xl mx-auto px-4 sm:px-6 md:px-16 py-20 md:py-28 relative z-20"
+      >
          
-         <div className="mb-20 text-center">
+         <div className="mb-12 md:mb-16 text-center">
             <h2 className="text-[#00f0ff] font-mono text-xs tracking-[0.3em] uppercase mb-4">02 // Featured Works</h2>
             <h3 className="text-white text-5xl md:text-7xl font-black uppercase tracking-tighter">Projects</h3>
             <p className="text-white/50 mt-4 max-w-xl mx-auto">Select any module to initialize case study protocols.</p>
@@ -417,34 +621,31 @@ export default function Home() {
 
          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             {/* Project 1: BiteWise */}
-            <Link href="/projects/bitewise-case-study" onClick={markPortfolioSectionInHistory} className="group block relative w-full h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-[#00f0ff]/50">
+            <Link
+               prefetch={false}
+               href="/projects/bitewise-case-study"
+               onClick={markPortfolioSectionInHistory}
+               className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-[#00f0ff]/50"
+            >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
-               
-               {/* BACKGROUND VIDEO LAYER - REPLACE WITH YOUR VIDEO */}
-               {/* Instructions: Put 'bitewise.mp4' in your Next.js 'public' folder and update the src below! */}
-               <div className="absolute inset-0 z-0 h-full w-full overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity duration-700">
-                  <video autoPlay loop muted playsInline className="absolute top-0 left-0 w-full h-[70%] object-cover opacity-80 group-hover:scale-105 transition-transform duration-1000 grayscale group-hover:grayscale-0">
-                     <source src="/bitewise.mp4" type="video/mp4" />
-                  </video>
-                  {/* This gradient fades the bottom of the video perfectly into the card */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d10] via-[#0c0d10]/80 to-transparent"></div>
-               </div>
+
+               <ProjectPreviewMedia projectId="bitewise" videoSrc="/bitewise.mp4" />
 
                {/* Simulated Animation Fallback (Shows if video fails) */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 mix-blend-screen pointer-events-none">
-                   <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 25, ease: "linear" }} className="absolute -inset-[50%] bg-[conic-gradient(from_0deg,transparent_0_340deg,#00f0ff_360deg)] opacity-30"></motion.div>
+                     <motion.div animate={shouldRunPreviewAmbient ? { rotate: 360 } : undefined} transition={shouldRunPreviewAmbient ? { repeat: Infinity, duration: 25, ease: "linear" } : undefined} className="absolute -inset-[50%] bg-[conic-gradient(from_0deg,transparent_0_340deg,#00f0ff_360deg)] opacity-30"></motion.div>
                </div>
 
                {/* Content */}
                <div className="relative z-10 w-full h-full p-8 md:p-10 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                  <div className="translate-y-8 group-hover:translate-y-0 transition-transform duration-500 ease-out">
+                  <div className="translate-y-0 md:translate-y-8 md:group-hover:translate-y-0 transition-transform duration-500 ease-out">
                      <span className="inline-block text-[#00f0ff] font-mono text-[10px] uppercase tracking-widest bg-[#00f0ff]/10 px-4 py-1.5 rounded-full mb-6 border border-[#00f0ff]/20 backdrop-blur-md">Web & Mobile</span>
                      <h4 className="text-white text-3xl md:text-5xl font-black mb-4">BiteWise</h4>
-                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-100">
                         A full-stack role-based digital nutrition coaching platform with real-time tracking, mentor discovery, and complex meal logging flows.
                      </p>
                      
-                     <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-200">
+                     <div className="flex items-center justify-between opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-200">
                         <div className="flex gap-3 text-[10px] font-mono text-[#00f0ff]">
                            <span className="bg-[#00f0ff]/10 border border-[#00f0ff]/20 px-3 py-1.5 rounded-full">Node.js</span>
                            <span className="bg-[#00f0ff]/10 border border-[#00f0ff]/20 px-3 py-1.5 rounded-full">MongoDB</span>
@@ -458,18 +659,15 @@ export default function Home() {
             </Link>
 
             {/* Project 2: AgriSmart */}
-            <Link href="/projects/agrismart-case-study" onClick={markPortfolioSectionInHistory} className="group block relative w-full h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-green-400/50">
+            <Link
+               prefetch={false}
+               href="/projects/agrismart-case-study"
+               onClick={markPortfolioSectionInHistory}
+               className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-green-400/50"
+            >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
-               
-               {/* BACKGROUND VIDEO LAYER - REPLACE WITH YOUR VIDEO */}
-               {/* Instructions: Put 'agrismart.mp4' in your Next.js 'public' folder and update the src below! */}
-               <div className="absolute inset-0 z-0 h-full w-full overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity duration-700">
-                  <video autoPlay loop muted playsInline className="absolute top-0 left-0 w-full h-[70%] object-cover opacity-80 group-hover:scale-105 transition-transform duration-1000 grayscale group-hover:grayscale-0">
-                     <source src="/agrismart.mp4" type="video/mp4" />
-                  </video>
-                  {/* Fading Mask */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d10] via-[#0c0d10]/80 to-transparent"></div>
-               </div>
+
+               <ProjectPreviewMedia projectId="agrismart" videoSrc="/agrismart.mp4" />
 
                {/* Simulated Video Fallback */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 overflow-hidden mix-blend-screen pointer-events-none">
@@ -477,14 +675,14 @@ export default function Home() {
                </div>
 
                <div className="relative z-10 w-full h-full p-8 md:p-10 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                  <div className="translate-y-8 group-hover:translate-y-0 transition-transform duration-500 ease-out">
+                  <div className="translate-y-0 md:translate-y-8 md:group-hover:translate-y-0 transition-transform duration-500 ease-out">
                      <span className="inline-block text-green-400 font-mono text-[10px] uppercase tracking-widest bg-green-400/10 px-4 py-1.5 rounded-full mb-6 border border-green-400/20 backdrop-blur-md">Full-Stack</span>
                      <h4 className="text-white text-3xl md:text-5xl font-black mb-4">AgriSmart</h4>
-                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-100">
                         Scalable agricultural marketplace aligning real business flows. Features real-time order management and AI-chatbot guidance.
                      </p>
                      
-                     <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-200">
+                     <div className="flex items-center justify-between opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-200">
                         <div className="flex gap-3 text-[10px] font-mono text-green-400">
                            <span className="bg-green-400/10 border border-green-400/20 px-3 py-1.5 rounded-full">Symfony</span>
                            <span className="bg-green-400/10 border border-green-400/20 px-3 py-1.5 rounded-full">Docker</span>
@@ -498,33 +696,30 @@ export default function Home() {
             </Link>
 
             {/* Project 3: Delivery App */}
-            <Link href="/projects/delivery-app-case-study" onClick={markPortfolioSectionInHistory} className="group block relative w-full h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-orange-400/50">
+            <Link
+               prefetch={false}
+               href="/projects/delivery-app-case-study"
+               onClick={markPortfolioSectionInHistory}
+               className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-orange-400/50"
+            >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
-               
-               {/* BACKGROUND VIDEO LAYER - REPLACE WITH YOUR VIDEO */}
-               {/* Instructions: Put 'delivery.mp4' in your Next.js 'public' folder and update the src below! */}
-               <div className="absolute inset-0 z-0 h-full w-full overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity duration-700">
-                  <video autoPlay loop muted playsInline className="absolute top-0 left-0 w-full h-[70%] object-cover opacity-80 group-hover:scale-105 transition-transform duration-1000 grayscale group-hover:grayscale-0">
-                     <source src="/delivery.mp4" type="video/mp4" />
-                  </video>
-                  {/* Fading Mask */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d10] via-[#0c0d10]/80 to-transparent"></div>
-               </div>
+
+               <ProjectPreviewMedia projectId="delivery" videoSrc="/delivery.mp4" />
 
                {/* Simulated Video Fallback */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 overflow-hidden mix-blend-screen pointer-events-none">
-                   <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 10, ease: "easeInOut" }} className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(251,146,60,0.6)_0%,transparent_50%)]"></motion.div>
+                     <motion.div animate={shouldRunPreviewAmbient ? { scale: [1, 1.2, 1], rotate: [0, 5, 0] } : undefined} transition={shouldRunPreviewAmbient ? { repeat: Infinity, duration: 10, ease: "easeInOut" } : undefined} className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(251,146,60,0.6)_0%,transparent_50%)]"></motion.div>
                </div>
 
                <div className="relative z-10 w-full h-full p-8 md:p-10 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                  <div className="translate-y-8 group-hover:translate-y-0 transition-transform duration-500 ease-out">
+                  <div className="translate-y-0 md:translate-y-8 md:group-hover:translate-y-0 transition-transform duration-500 ease-out">
                      <span className="inline-block text-orange-400 font-mono text-[10px] uppercase tracking-widest bg-orange-400/10 px-4 py-1.5 rounded-full mb-6 border border-orange-400/20 backdrop-blur-md">Mobile UI/UX</span>
                      <h4 className="text-white text-3xl md:text-5xl font-black mb-4">Delivery App</h4>
-                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-100">
                         Comprehensive delivery lifecycle mobile app focused on intuitive user workflows, order captures, and automated assignments.
                      </p>
                      
-                     <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-200">
+                     <div className="flex items-center justify-between opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-200">
                         <div className="flex gap-3 text-[10px] font-mono text-orange-400">
                            <span className="bg-orange-400/10 border border-orange-400/20 px-3 py-1.5 rounded-full">FlutterFlow</span>
                         </div>
@@ -537,35 +732,32 @@ export default function Home() {
             </Link>
 
             {/* Project 4: GNS3 */}
-            <Link href="/projects/networking-gns3-case-study" onClick={markPortfolioSectionInHistory} className="group block relative w-full h-[450px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-purple-400/50">
+            <Link
+               prefetch={false}
+               href="/projects/networking-gns3-case-study"
+               onClick={markPortfolioSectionInHistory}
+               className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-purple-400/50"
+            >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
-               
-               {/* BACKGROUND VIDEO LAYER - REPLACE WITH YOUR VIDEO */}
-               {/* Instructions: Put 'gns3.mp4' in your Next.js 'public' folder and update the src below! */}
-               <div className="absolute inset-0 z-0 h-full w-full overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity duration-700">
-                  <video autoPlay loop muted playsInline className="absolute top-0 left-0 w-full h-[70%] object-cover opacity-80 group-hover:scale-105 transition-transform duration-1000 grayscale group-hover:grayscale-0">
-                     <source src="/gns3.mp4" type="video/mp4" />
-                  </video>
-                  {/* Fading Mask */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d10] via-[#0c0d10]/80 to-transparent"></div>
-               </div>
+
+               <ProjectPreviewMedia projectId="gns3" videoSrc="/gns3.mp4" />
 
                {/* Simulated Video Fallback */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 overflow-hidden mix-blend-screen pointer-events-none flex items-center justify-center">
                    {[...Array(3)].map((_, i) => (
-                      <motion.div key={i} animate={{ scale: [1, 2.5], opacity: [0.8, 0] }} transition={{ repeat: Infinity, duration: 4, delay: i * 1.3 }} className="absolute w-[200px] h-[200px] border-2 border-purple-500 rounded-full" />
+                       <motion.div key={i} animate={shouldRunPreviewAmbient ? { scale: [1, 2.5], opacity: [0.8, 0] } : undefined} transition={shouldRunPreviewAmbient ? { repeat: Infinity, duration: 4, delay: i * 1.3 } : undefined} className="absolute w-[200px] h-[200px] border-2 border-purple-500 rounded-full" />
                    ))}
                </div>
 
                <div className="relative z-10 w-full h-full p-8 md:p-10 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                  <div className="translate-y-8 group-hover:translate-y-0 transition-transform duration-500 ease-out">
+                  <div className="translate-y-0 md:translate-y-8 md:group-hover:translate-y-0 transition-transform duration-500 ease-out">
                      <span className="inline-block text-purple-400 font-mono text-[10px] uppercase tracking-widest bg-purple-400/10 px-4 py-1.5 rounded-full mb-6 border border-purple-400/20 backdrop-blur-md">Infra & Labs</span>
                      <h4 className="text-white text-3xl md:text-5xl font-black mb-4">Multi-Site VPN</h4>
-                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                     <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-100">
                         Designed and validated a massive multi-site topology leveraging OSPF backbone routing and robust perimeter security with GRE/IPsec.
                      </p>
                      
-                     <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-200">
+                     <div className="flex items-center justify-between opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-500 delay-200">
                         <div className="flex gap-3 text-[10px] font-mono text-purple-400">
                            <span className="bg-purple-400/10 border border-purple-400/20 px-3 py-1.5 rounded-full">GNS3</span>
                            <span className="bg-purple-400/10 border border-purple-400/20 px-3 py-1.5 rounded-full">OSPF/IPsec</span>
@@ -578,40 +770,101 @@ export default function Home() {
                </div>
             </Link>
          </div>
-      </section>
+      </motion.section>
 
       {/* 7. CINEMATIC FOOTER & CONTACT */}
-      <section id="contact" className="relative max-w-7xl mx-auto px-8 md:px-16 pt-32 md:pt-48 pb-10 z-20 flex flex-col items-center justify-center text-center">
-         <p className="text-[#00f0ff] font-mono text-sm tracking-[0.3em] uppercase mb-8">03 // What's Next?</p>
-         <h2 className="text-white text-5xl md:text-[8rem] font-black uppercase tracking-tighter leading-[0.85] mb-12">
-            Let's Build <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#00f0ff]/50">Something.</span>
+      <motion.section
+         id="contact"
+         initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
+         whileInView={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+         transition={{ duration: prefersReducedMotion ? 0 : 0.45, ease: "easeOut" }}
+         viewport={{ once: true, amount: 0.15 }}
+         className="relative max-w-7xl mx-auto px-4 sm:px-6 md:px-16 pt-16 md:pt-24 pb-8 md:pb-10 z-20 flex flex-col items-center justify-center text-center"
+      >
+         <p className="text-[#00f0ff] font-mono text-[11px] tracking-[0.24em] uppercase mb-5">03 // Let&apos;s Collaborate</p>
+         <h2 className="text-white text-4xl sm:text-5xl md:text-7xl font-black uppercase tracking-tighter leading-[0.9] mb-6">
+            Let&apos;s Build <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#00f0ff]/60">Something Great</span>
          </h2>
+         <p className="max-w-2xl text-white/65 text-sm sm:text-base leading-7 mb-10">
+            Available for internships, freelance collaboration, and product-focused engineering roles. If your team is building something meaningful, I would love to contribute.
+         </p>
          
          {/* Magnetic Glowing Button Effect */}
            <motion.a 
             href={directMailTo}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="relative group mb-32 inline-block cursor-none outline-none"
+            className="relative group mb-10 md:mb-12 inline-block md:cursor-none outline-none"
          >
             <div className="absolute inset-0 bg-[#00f0ff] blur-lg opacity-20 group-hover:opacity-60 transition-opacity duration-500 rounded-full"></div>
             <div className="relative bg-[#111315] border border-[#00f0ff]/50 px-10 py-5 rounded-full flex items-center gap-4 transition-all duration-300 group-hover:bg-[#00f0ff]">
-               <span className="text-white font-bold uppercase tracking-widest text-sm group-hover:text-black transition-colors">Email Me Directly</span>
+               <span className="text-white font-bold uppercase tracking-[0.14em] text-xs sm:text-sm group-hover:text-black transition-colors">Start a Project</span>
                <ArrowRight size={18} className="text-[#00f0ff] group-hover:text-black transition-colors" />
             </div>
          </motion.a>
 
-         <div className="w-full flex flex-col md:flex-row items-center justify-between border-t border-white/10 pt-8 text-white/40 text-xs font-mono uppercase tracking-widest">
-            <p>© {new Date().getFullYear()} Aya Fdhila.</p>
-            <div className="flex gap-6 mt-4 md:mt-0">
-               <a href="https://linkedin.com/in/eya-fdhila" className="hover:text-[#00f0ff] transition-colors">LinkedIn</a>
-               <a href="https://github.com/aya284" className="hover:text-[#00f0ff] transition-colors">GitHub</a>
+         <div className="w-full max-w-3xl glass-card rounded-2xl px-4 sm:px-6 py-4 sm:py-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-white/70 text-xs sm:text-sm">
+            <a href="mailto:ayafdhila@gmail.com" className="font-mono tracking-wide hover:text-[#00f0ff] transition-colors">ayafdhila@gmail.com</a>
+            <div className="flex items-center gap-4">
+               <a href="https://linkedin.com/in/eya-fdhila" className="px-3 py-1.5 rounded-full border border-white/15 hover:border-[#00f0ff]/50 hover:text-[#00f0ff] transition-colors">LinkedIn</a>
+               <a href="https://github.com/aya284" className="px-3 py-1.5 rounded-full border border-white/15 hover:border-[#00f0ff]/50 hover:text-[#00f0ff] transition-colors">GitHub</a>
             </div>
          </div>
-      </section>
+
+         <p className="text-white/35 text-xs mt-6 font-mono tracking-[0.14em] uppercase">© {new Date().getFullYear()} Aya Fdhila</p>
+      </motion.section>
 
       {/* 8. CYBERNETIC CONTACT MODAL (IN-PORTFOLIO CONVERSATION) */}
       <AnimatePresence>
+            {isResumeModalOpen && (
+               <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[290] bg-[#0a0c10]/92 backdrop-blur-md p-3 sm:p-6 md:p-10"
+               >
+                  <motion.div
+                     initial={{ scale: 0.98, y: 12 }}
+                     animate={{ scale: 1, y: 0 }}
+                     exit={{ scale: 0.98, y: 12 }}
+                     transition={{ type: "spring", duration: 0.45 }}
+                     className="w-full h-full max-w-6xl mx-auto bg-[#111315] border border-[#00f0ff]/20 rounded-2xl md:rounded-3xl shadow-[0_0_60px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col"
+                  >
+                     <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-white/[0.02]">
+                        <div className="flex items-center gap-3 min-w-0">
+                           <FileText size={18} className="text-[#00f0ff] shrink-0" />
+                           <p className="text-white font-semibold tracking-wide text-sm sm:text-base truncate">Aya Fdhila - Resume</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                           <a
+                              href="/aya-fdhila-cv.pdf"
+                              download
+                              className="inline-flex items-center gap-2 rounded-full border border-[#00f0ff]/35 bg-[#00f0ff]/10 px-3 sm:px-4 py-2 text-[#00f0ff] text-xs sm:text-sm font-semibold hover:bg-[#00f0ff] hover:text-black transition-colors"
+                           >
+                              <Download size={14} /> Download
+                           </a>
+                           <button
+                              type="button"
+                              onClick={() => setIsResumeModalOpen(false)}
+                              className="p-2 rounded-full border border-white/15 text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                              aria-label="Close resume preview"
+                           >
+                              <X size={18} />
+                           </button>
+                        </div>
+                     </div>
+
+                     <div className="flex-1 bg-[#0c0d10]">
+                        <iframe
+                           src="/aya-fdhila-cv.pdf#view=FitH"
+                           title="Aya Fdhila Resume"
+                           className="w-full h-full"
+                        />
+                     </div>
+                  </motion.div>
+               </motion.div>
+            )}
+
         {isContactModalOpen && (
           <motion.div 
             initial={{ opacity: 0 }}
@@ -657,7 +910,8 @@ export default function Home() {
                       // 1. Service ID
                       // 2. Template ID
                       // 3. Public Key
-                      emailjs.sendForm('service_m2hxngv', 'template_9lo2vui', formRef.current!, 'xaUPIKe4Hya_FusS_')
+                      import("@emailjs/browser")
+                                    .then(({ default: emailjs }) => emailjs.sendForm('service_m2hxngv', 'template_9lo2vui', formRef.current!, 'xaUPIKe4Hya_FusS_'))
                                     .then(() => {
                                        setContactStep(2);
                                     }, () => {

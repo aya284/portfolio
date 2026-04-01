@@ -215,12 +215,12 @@ export default function AgriSmartCaseStudyPage() {
               <h3 className="text-white text-2xl md:text-3xl font-black tracking-tight">Continue Exploring Projects</h3>
             </div>
             <div className="flex flex-wrap gap-3">
-              <a href="/#portfolio" className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm text-white hover:border-white/35 transition-colors">
+              <Link href="/#portfolio" className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-sm text-white hover:border-white/35 transition-colors">
                 Back to Portfolio
-              </a>
-              <a href="/projects/delivery-app-case-study" className="inline-flex items-center gap-2 rounded-full border border-green-300/35 bg-green-300/10 px-4 py-2 text-sm text-green-300 hover:bg-green-300 hover:text-black transition-colors">
+              </Link>
+              <Link href="/projects/delivery-app-case-study" className="inline-flex items-center gap-2 rounded-full border border-green-300/35 bg-green-300/10 px-4 py-2 text-sm text-green-300 hover:bg-green-300 hover:text-black transition-colors">
                 Next Project <ArrowRight size={15} />
-              </a>
+              </Link>
             </div>
           </div>
         </motion.section>

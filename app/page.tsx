@@ -155,13 +155,13 @@ export default function Home() {
 
    const ProjectPreviewMedia = ({
       projectId,
-      videoSrc,
    }: {
       projectId: string;
-      videoSrc: string;
    }) => {
       const mediaRef = useRef<HTMLDivElement>(null);
+      const videoRef = useRef<HTMLVideoElement>(null);
       const [isInView, setIsInView] = useState(false);
+      const [hasVideoError, setHasVideoError] = useState(false);
 
       useEffect(() => {
          const node = mediaRef.current;
@@ -173,7 +173,7 @@ export default function Home() {
             },
             {
                root: null,
-               threshold: 0.55,
+               threshold: 0.2,
                rootMargin: "80px 0px 80px 0px",
             }
          );
@@ -182,22 +182,65 @@ export default function Home() {
          return () => observer.disconnect();
       }, []);
 
-      const shouldPreview = isPageVisible && isInView;
+      const shouldPreview = hasFinePointer && isPageVisible && isInView;
+
+      useEffect(() => {
+         const videoEl = videoRef.current;
+         if (!videoEl || hasVideoError) return;
+
+         if (shouldPreview) {
+            videoEl.load();
+            void videoEl.play().catch(() => {
+               // Autoplay may be blocked; keep gradient layer as graceful fallback.
+            });
+            return;
+         }
+
+         videoEl.pause();
+         videoEl.currentTime = 0;
+      }, [shouldPreview, hasVideoError]);
+
+      const videoByProject: Record<string, string> = {
+         bitewise: "/bitewise.mp4",
+         agrismart: "/agrismart.mp4",
+         delivery: "/delivery.mp4",
+         gns3: "/gns3.mp4",
+      };
+
+      const accentByProject: Record<string, string> = {
+         bitewise:
+            "bg-[radial-gradient(circle_at_20%_20%,rgba(0,240,255,0.25),transparent_55%),radial-gradient(circle_at_80%_70%,rgba(56,189,248,0.18),transparent_45%)]",
+         agrismart:
+            "bg-[radial-gradient(circle_at_18%_20%,rgba(74,222,128,0.24),transparent_55%),radial-gradient(circle_at_82%_72%,rgba(16,185,129,0.18),transparent_45%)]",
+         delivery:
+            "bg-[radial-gradient(circle_at_20%_20%,rgba(251,146,60,0.28),transparent_55%),radial-gradient(circle_at_78%_70%,rgba(245,158,11,0.2),transparent_45%)]",
+         gns3:
+            "bg-[radial-gradient(circle_at_20%_20%,rgba(168,85,247,0.24),transparent_55%),radial-gradient(circle_at_80%_70%,rgba(59,130,246,0.18),transparent_45%)]",
+      };
 
       return (
          <div ref={mediaRef} className="absolute inset-0 z-0 h-full w-full overflow-hidden opacity-80 md:opacity-50 md:group-hover:opacity-100 transition-opacity duration-700">
-            <video
-               autoPlay={shouldPreview}
-               loop
-               muted
-               playsInline
-               preload="none"
-               className={`absolute top-0 left-0 w-full h-[70%] object-cover transition-all duration-500 ${
-                  shouldPreview ? "opacity-85 md:group-hover:scale-105" : "opacity-0"
+            <div
+               className={`absolute top-0 left-0 w-full h-[70%] ${accentByProject[projectId] ?? accentByProject.bitewise} transition-all duration-700 ${
+                  shouldPreview ? "opacity-95 scale-[1.02]" : "opacity-80"
                }`}
-            >
-               {shouldPreview && <source src={videoSrc} type="video/mp4" />}
-            </video>
+            />
+            {!hasVideoError && (
+               <video
+                  ref={videoRef}
+                  loop
+                  muted
+                  playsInline
+                  preload="none"
+                  onError={() => setHasVideoError(true)}
+                  className={`absolute top-0 left-0 w-full h-[70%] object-cover transition-all duration-500 md:group-hover:scale-105 ${
+                     shouldPreview ? "opacity-85" : "opacity-0"
+                  }`}
+               >
+                  {shouldPreview && <source src={videoByProject[projectId] ?? "/bitewise.mp4"} type="video/mp4" />}
+               </video>
+            )}
+            <div className="absolute top-0 left-0 w-full h-[70%] bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(10,11,14,0.95))]" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d10] via-[#0c0d10]/80 to-transparent"></div>
          </div>
       );
@@ -622,14 +665,13 @@ export default function Home() {
          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             {/* Project 1: BiteWise */}
             <Link
-               prefetch={false}
                href="/projects/bitewise-case-study"
                onClick={markPortfolioSectionInHistory}
                className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-[#00f0ff]/50"
             >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
 
-               <ProjectPreviewMedia projectId="bitewise" videoSrc="/bitewise.mp4" />
+               <ProjectPreviewMedia projectId="bitewise" />
 
                {/* Simulated Animation Fallback (Shows if video fails) */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 mix-blend-screen pointer-events-none">
@@ -660,14 +702,13 @@ export default function Home() {
 
             {/* Project 2: AgriSmart */}
             <Link
-               prefetch={false}
                href="/projects/agrismart-case-study"
                onClick={markPortfolioSectionInHistory}
                className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-green-400/50"
             >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
 
-               <ProjectPreviewMedia projectId="agrismart" videoSrc="/agrismart.mp4" />
+               <ProjectPreviewMedia projectId="agrismart" />
 
                {/* Simulated Video Fallback */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 overflow-hidden mix-blend-screen pointer-events-none">
@@ -697,14 +738,13 @@ export default function Home() {
 
             {/* Project 3: Delivery App */}
             <Link
-               prefetch={false}
                href="/projects/delivery-app-case-study"
                onClick={markPortfolioSectionInHistory}
                className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-orange-400/50"
             >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
 
-               <ProjectPreviewMedia projectId="delivery" videoSrc="/delivery.mp4" />
+               <ProjectPreviewMedia projectId="delivery" />
 
                {/* Simulated Video Fallback */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 overflow-hidden mix-blend-screen pointer-events-none">
@@ -733,14 +773,13 @@ export default function Home() {
 
             {/* Project 4: GNS3 */}
             <Link
-               prefetch={false}
                href="/projects/networking-gns3-case-study"
                onClick={markPortfolioSectionInHistory}
                className="group block relative w-full h-[340px] sm:h-[420px] md:h-[500px] rounded-[2rem] overflow-hidden cursor-pointer transform-gpu transition-all duration-700 hover:scale-[1.02] hover:-translate-y-2 shadow-2xl shadow-black/80 border border-white/5 hover:border-purple-400/50"
             >
                <div className="absolute inset-0 bg-[#0c0d10] z-0"></div>
 
-               <ProjectPreviewMedia projectId="gns3" videoSrc="/gns3.mp4" />
+               <ProjectPreviewMedia projectId="gns3" />
 
                {/* Simulated Video Fallback */}
                <div className="absolute inset-0 z-0 opacity-10 group-hover:opacity-30 transition-opacity duration-700 overflow-hidden mix-blend-screen pointer-events-none flex items-center justify-center">

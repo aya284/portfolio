@@ -876,7 +876,7 @@ export default function Home() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                            <a
-                              href="/aya-fdhila-cv.pdf"
+                              href="/Aya_Fdhila_CV_final.pdf"
                               download
                               className="inline-flex items-center gap-2 rounded-full border border-[#00f0ff]/35 bg-[#00f0ff]/10 px-3 sm:px-4 py-2 text-[#00f0ff] text-xs sm:text-sm font-semibold hover:bg-[#00f0ff] hover:text-black transition-colors"
                            >
@@ -895,7 +895,7 @@ export default function Home() {
 
                      <div className="flex-1 bg-[#0c0d10]">
                         <iframe
-                           src="/aya-fdhila-cv.pdf#view=FitH"
+                           src="/Aya_Fdhila_CV_final.pdf#view=FitH"
                            title="Aya Fdhila Resume"
                            className="w-full h-full"
                         />
